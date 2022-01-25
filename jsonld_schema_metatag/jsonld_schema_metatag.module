@@ -1,0 +1,64 @@
+<?php
+
+use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\metatag\MetatagManager;
+use Drupal\schema_metatag\SchemaMetatagManager;
+use ML\JsonLD\JsonLD;
+
+/*
+*
+ * @file
+ * Primary module hooks for JSON-LD Schema.org MetaTag Integration module.
+ **/
+
+/**
+ *  * Implements hook_jsonld_alter_normalized_array().
+ *
+ * @param \Drupal\Core\Entity\EntityInterface $entity
+ * The entity being normalized.
+ * @param array $normalized
+ * The normalized array representation.
+ * @param $context
+ *  Context array.
+ *
+ * @return void
+ */
+function jsonld_schema_metatag_jsonld_alter_normalized_array(ContentEntityInterface $entity, Array &$normalized, $context) {
+
+  // Collect tags added by Schema Metatag into structured data array.
+  $schema_metatag_manager = \Drupal::service('schema_metatag.schema_metatag_manager');
+  /**
+   * @var MetatagManager $metatag_manager
+   */
+  $metatag_manager = \Drupal::service('metatag.manager');
+  $tags = $metatag_manager->tagsFromEntityWithDefaults($entity);
+
+  if (!empty($entity) && $entity instanceof ContentEntityInterface) {
+    foreach ($tags as $tag => $data) {
+      $metatags[$tag] = $data;
+    }
+  }
+  $context = ['entity' => $entity];
+  \Drupal::service('module_handler')->alter('metatags', $metatags, $context);
+
+  if (!empty($metatags)) {
+    $elements = $metatag_manager->generateElements($metatags, $entity);
+
+    $items = $schema_metatag_manager->parseJsonld($elements['#attached']['html_head']);
+    $jsonld = $schema_metatag_manager->encodeJsonld($items);
+    $compacted = JsonLD::compact($jsonld);
+    if (!empty($compacted)) {
+      foreach ($compacted as $json_item_key => $json_item) {
+        $normalized['@graph'][0][$json_item_key] = $json_item;
+      }
+
+    }
+  }
+
+    /*
+  if (count($items) > 0) {
+    //$jsonld = $schema_metatag_manager->encodeJsonld($items);
+    if (!empty($jsonld)) {
+*/
+
+}
